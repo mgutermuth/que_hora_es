@@ -26,6 +26,11 @@ resource "aws_security_group" "give_me_traffic" {
   }
 }
 
+resource "aws_key_pair" "my_key" {
+  key_name   = "id_rsa"
+  public_key = var.public_key
+}
+
 ###
 # IAM configuration to give ECR access. 
 ###
@@ -58,6 +63,7 @@ resource "aws_instance" "application" {
   instance_type        = "t2.micro"
   security_groups      = ["${aws_security_group.give_me_traffic.id}"]
   subnet_id            = aws_subnet.public.id
+  key_name             = aws_key_pair.my_key.key_name
   iam_instance_profile = aws_iam_instance_profile.ecr_profile.name
   tags = {
     "version_number" : var.version_number
@@ -67,11 +73,11 @@ resource "aws_instance" "application" {
     create_before_destroy = true
   }
 
-###
-# Commands run on EC2 instance
-# Install + log in to docker, pull latest version of date-and-time image. 
-# who needs a whole ec2 instance for one docker image? This guy. 
-###
+  ###
+  # Commands run on EC2 instance
+  # Install + log in to docker, pull latest version of date-and-time image. 
+  # who needs a whole ec2 instance for one docker image? This guy. 
+  ###
   provisioner "remote-exec" {
     inline = [
       "sudo yum install -y docker",
@@ -110,8 +116,8 @@ resource "aws_elb" "application_elb" {
     interval            = 30
   }
 
-  instances = [aws_instance.application.id]
-  security_groups      = ["${aws_security_group.give_me_traffic.id}"]
+  instances       = [aws_instance.application.id]
+  security_groups = ["${aws_security_group.give_me_traffic.id}"]
 
   lifecycle {
     create_before_destroy = true

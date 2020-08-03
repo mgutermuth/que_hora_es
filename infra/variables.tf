@@ -1,9 +1,3 @@
-variable "deploy_application_green" {
-  description = "deploy green version"
-  type        = bool
-  default     = false
-}
-
 variable "version_number" {
   description = "What version to run"
   type        = string
@@ -56,4 +50,9 @@ variable "availability_zone" {
   description = "az for subnet"
   type        = list(string)
   default     = ["us-east-2a", "us-east-2b", "us-east-2c"]
+}
+
+variable "public_key" {
+  description = "Public key used for SSH to the box"
+  type        = string
 }
