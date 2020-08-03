@@ -11,7 +11,7 @@ resource "aws_security_group" "give_me_traffic" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "allow port 80 from anywhere"
+    description = "allow all traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -24,26 +24,6 @@ resource "aws_security_group" "give_me_traffic" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-###
-# Commands run on EC2 instance
-# Install + log in to docker, pull latest version of date-and-time image. 
-# who needs a whole ec2 instance for one docker image? This guy. 
-###
-locals {
-  user_data = <<-EOF
-              #!/bin/bash
-              sudo amazon-linux-extras install docker
-              sudo service docker start
-              sudo usermod -a -G docker ec2-user
-              sudo $(aws ecr get-login --no-include-email --region us-east-2)
-              sudo docker run -d -p 5000:5000 493700338917.dkr.ecr.us-east-2.amazonaws.com/date-and-time:latest
-              EOF
-}
-
-resource "aws_key_pair" "my_key" {
-  key_name   = "id_rsa"
 }
 
 ###
@@ -78,8 +58,20 @@ resource "aws_instance" "application" {
   instance_type        = "t2.micro"
   security_groups      = ["${aws_security_group.give_me_traffic.id}"]
   subnet_id            = aws_subnet.public.id
-  #user_data            = local.user_data
-  key_name = aws_key_pair.my_key.key_name
+  iam_instance_profile = aws_iam_instance_profile.ecr_profile.name
+  tags = {
+    "version_number" : var.version_number
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+###
+# Commands run on EC2 instance
+# Install + log in to docker, pull latest version of date-and-time image. 
+# who needs a whole ec2 instance for one docker image? This guy. 
+###
   provisioner "remote-exec" {
     inline = [
       "sudo yum install -y docker",
@@ -95,22 +87,11 @@ resource "aws_instance" "application" {
       host        = aws_instance.application.public_ip
     }
   }
-  iam_instance_profile = aws_iam_instance_profile.ecr_profile.name
-
-
-
-
-  tags = {
-    "version_number" : var.version_number
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-
-
 }
 
+###
+# Load balancer for web app
+###
 resource "aws_elb" "application_elb" {
   subnets = [aws_subnet.public.id]
 
